@@ -1,55 +1,53 @@
 import 'package:flutter/material.dart';
-import 'auth_controller.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'auth_controller.dart';
 
 class AuthPage extends ConsumerWidget {
-  final emailController = TextEditingController();
-  final passwordController = TextEditingController();
+  const AuthPage({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final authController = ref.read(authControllerProvider);
 
     return Scaffold(
-      appBar: AppBar(title: Text('Kernel Login')),
-      body: Padding(
-        padding: EdgeInsets.all(20),
+      backgroundColor: Colors.black,
+      body: Center(
         child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            TextField(
-              controller: emailController,
-              decoration: InputDecoration(labelText: 'Email'),
+            const Text(
+              'Kernel',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 42,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 2,
+              ),
             ),
-            TextField(
-              controller: passwordController,
-              decoration: InputDecoration(labelText: 'Password'),
-              obscureText: true,
-            ),
-            SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: () async {
-                final res = await authController.signInWithEmail(
-                  emailController.text,
-                  passwordController.text,
-                );
-                if (res.user != null) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Logged in as ${res.user!.email}')),
-                  );
-                  // Navigate to workout templates page here later
-                } else {
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(SnackBar(content: Text('Login failed')));
-                }
-              },
-              child: Text('Login'),
-            ),
-            ElevatedButton(
+            const SizedBox(height: 60),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: Colors.black,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              icon: Image.network(
+                'https://developers.google.com/identity/images/g-logo.png',
+                height: 24,
+              ),
+              label: const Text(
+                'Sign in with Google',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+              ),
               onPressed: () async {
                 await authController.signInWithGoogle();
               },
-              child: Text('Login with Google'),
             ),
           ],
         ),

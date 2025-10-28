@@ -1,39 +1,21 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' as supabase;
 
 final authControllerProvider = Provider<AuthController>((ref) {
   return AuthController();
 });
 
 class AuthController {
-  final SupabaseClient _client = Supabase.instance.client;
+  final supabase.SupabaseClient _client = supabase.Supabase.instance.client;
 
-  User? get currentUser => _client.auth.currentUser;
-
-  // Sign in with email
-  Future<AuthResponse> signInWithEmail(String email, String password) async {
-    final res = await _client.auth.signInWithPassword(
-      email: email,
-      password: password,
-    );
-    await _ensureUserRow();
-    return res;
-  }
-
-  // Sign up with email
-  Future<AuthResponse> signUpWithEmail(
-    String email,
-    String password, {
-    String? displayName,
-  }) async {
-    final res = await _client.auth.signUp(email: email, password: password);
-    await _ensureUserRow(displayName: displayName);
-    return res;
-  }
+  supabase.User? get currentUser => _client.auth.currentUser;
 
   // Sign in with Google
   Future<void> signInWithGoogle() async {
-    await _client.auth.signInWithOAuth(provider: Provider.google);
+    await _client.auth.signInWithOAuth(
+      supabase.Provider.google,
+      redirectTo: 'https://mdijnmmvgxatevyxlyne.supabase.co/auth/v1/callback',
+    );
     await _ensureUserRow();
   }
 
@@ -42,21 +24,24 @@ class AuthController {
     await _client.auth.signOut();
   }
 
-  // Ensure a row exists in users table
+  // Ensure user row exists
   Future<void> _ensureUserRow({String? displayName}) async {
     final user = _client.auth.currentUser;
     if (user == null) return;
 
     final response =
-        await _client.from('users').select().eq('id', user.id).execute();
+        await _client.from('users').select().eq('id', user.id).maybeSingle();
 
-    if (response.data == null || (response.data as List).isEmpty) {
-      // Insert user row
+    if (response == null) {
       await _client.from('users').insert({
         'id': user.id,
         'email': user.email,
-        'display_name': displayName ?? user.userMetadata?['full_name'] ?? '',
-      }).execute();
+        'display_name':
+            displayName ??
+            user.userMetadata?['full_name'] ??
+            user.email?.split('@').first ??
+            '',
+      });
     }
   }
 }
