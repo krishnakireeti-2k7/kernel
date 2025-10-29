@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' as supabase;
+import 'package:flutter/material.dart';
 
 final authControllerProvider = Provider<AuthController>((ref) {
   return AuthController();
@@ -10,25 +11,29 @@ class AuthController {
 
   supabase.User? get currentUser => _client.auth.currentUser;
 
-  // Sign in with Google
+  /// Google Sign-In
   Future<void> signInWithGoogle() async {
     await _client.auth.signInWithOAuth(
       supabase.OAuthProvider.google,
       redirectTo: 'io.supabase.flutterdemo://login-callback/',
       queryParams: {
-        'prompt': 'select_account', // always show account picker
+        'prompt': 'select_account', // Always show account picker
       },
     );
   }
 
-
-  // Sign out
-  Future<void> signOut() async {
+  /// Sign Out
+  Future<void> signOut(BuildContext context) async {
     await _client.auth.signOut();
+
+    // Navigate back to AuthPage
+    if (context.mounted) {
+      Navigator.of(context).pushNamedAndRemoveUntil('/auth', (route) => false);
+    }
   }
 
-  // Ensure user row exists
-  Future<void> _ensureUserRow({String? displayName}) async {
+  /// Ensure user exists in 'users' table
+  Future<void> ensureUserRow({String? displayName}) async {
     final user = _client.auth.currentUser;
     if (user == null) return;
 
