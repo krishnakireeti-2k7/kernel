@@ -13,11 +13,14 @@ class AuthController {
   // Sign in with Google
   Future<void> signInWithGoogle() async {
     await _client.auth.signInWithOAuth(
-      supabase.Provider.google,
-      redirectTo: 'https://mdijnmmvgxatevyxlyne.supabase.co/auth/v1/callback',
+      supabase.OAuthProvider.google,
+      redirectTo: 'io.supabase.flutterdemo://login-callback/',
+      queryParams: {
+        'prompt': 'select_account', // always show account picker
+      },
     );
-    await _ensureUserRow();
   }
+
 
   // Sign out
   Future<void> signOut() async {
