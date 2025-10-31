@@ -16,10 +16,11 @@ class AuthController {
     await _client.auth.signInWithOAuth(
       supabase.OAuthProvider.google,
       redirectTo: 'io.supabase.flutterdemo://login-callback/',
-      queryParams: {
-        'prompt': 'select_account', // Always show account picker
-      },
+      queryParams: {'prompt': 'select_account'},
     );
+
+    // Auto-create user row after successful login
+    await ensureUserRow();
   }
 
   /// Sign Out

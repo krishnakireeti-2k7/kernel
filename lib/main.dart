@@ -8,19 +8,20 @@ import 'package:go_router/go_router.dart';
 import 'features/auth/auth_page.dart';
 import 'features/home/home_page.dart';
 
-/// A notifier that rebuilds GoRouter when the auth state changes.
-class StreamChangeNotifier extends ChangeNotifier {
-  final Stream _stream;
-  late final StreamSubscription _sub;
+class AuthStateNotifier extends ChangeNotifier {
+  final SupabaseClient _supabase;
+  bool _isLoading = true;
+  bool get isLoading => _isLoading;
 
-  StreamChangeNotifier(this._stream) {
-    _sub = _stream.listen((_) => notifyListeners());
-  }
+  AuthStateNotifier(this._supabase) {
+    // Listen to auth changes
+    _supabase.auth.onAuthStateChange.listen((data) {
+      _isLoading = false;
+      notifyListeners();
+    });
 
-  @override
-  void dispose() {
-    _sub.cancel();
-    super.dispose();
+    // Trigger session recovery
+    _supabase.auth.currentSession;
   }
 }
 
@@ -30,7 +31,7 @@ Future<void> main() async {
   await Supabase.initialize(
     url: 'https://mdijnmmvgxatevyxlyne.supabase.co',
     anonKey:
-        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1kaWpubW12Z3hhdGV2eXhseW5lIiwicm9sZSI6ImFub25uIiwiaWF0IjoxNzYxNDU3ODQzLCJleHAiOjIwNzcwMzM4NDN9.b-rBPczSrUnAQaVSIQ8gGKdrIEP6PpJz2K_obGjGPRM',
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1kaWpubW12Z3hhdGV2eXhseW5lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE0NTc4NDMsImV4cCI6MjA3NzAzMzg0M30.b-rBPczSrUnAQaVSIQ8gGKdrIEP6PpJz2K_obGjGPRM'  
   );
 
   runApp(const ProviderScope(child: KernelApp()));
@@ -45,42 +46,47 @@ class KernelApp extends ConsumerStatefulWidget {
 
 class _KernelAppState extends ConsumerState<KernelApp> {
   late final GoRouter _router;
+  late final AuthStateNotifier _authNotifier;
   final _supabase = Supabase.instance.client;
-  late final StreamChangeNotifier _authNotifier;
 
   @override
   void initState() {
     super.initState();
-    _authNotifier = StreamChangeNotifier(_supabase.auth.onAuthStateChange);
+
+    _authNotifier = AuthStateNotifier(_supabase);
 
     _router = GoRouter(
-      initialLocation: '/auth',
+      initialLocation: '/',
       refreshListenable: _authNotifier,
       routes: [
         GoRoute(path: '/auth', builder: (context, state) => const AuthPage()),
         GoRoute(path: '/home', builder: (context, state) => const HomePage()),
+        GoRoute(
+          path: '/',
+          redirect: (context, state) => '/home',
+        ),
       ],
       redirect: (context, state) {
+        final isLoading = _authNotifier.isLoading;
         final session = _supabase.auth.currentSession;
-        final loggingIn = state.matchedLocation == '/auth';
+        final isOnAuth = state.matchedLocation == '/auth';
 
-        // 🔥 Core logic: after login redirect to /home
+        if (isLoading) return null; // Wait
+
         if (session == null) {
-          return loggingIn ? null : '/auth';
-        } else {
-          return loggingIn ? '/home' : null;
+          return '/auth';
         }
+
+        if (isOnAuth) {
+          return '/home';
+        }
+
+        return null;
       },
       errorBuilder:
           (context, state) =>
               Scaffold(body: Center(child: Text('Error: ${state.error}'))),
     );
-  }
-
-  @override
-  void dispose() {
-    _authNotifier.dispose();
-    super.dispose();
   }
 
   @override
