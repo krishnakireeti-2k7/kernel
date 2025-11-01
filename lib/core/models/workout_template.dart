@@ -1,36 +1,15 @@
-// core/models/workout_template.dart
-class ExerciseTemplate {
-  final String exerciseId;
-  final int sets;
-  final int reps;
-  final double weight;
+// lib/core/models/workout_template.dart
+import 'package:hive/hive.dart';
 
-  ExerciseTemplate({
-    required this.exerciseId,
-    required this.sets,
-    required this.reps,
-    required this.weight,
-  });
+part 'workout_template.g.dart'; // THIS LINE IS CRITICAL
 
-  Map<String, dynamic> toJson() => {
-    'exercise_id': exerciseId,
-    'sets': sets,
-    'reps': reps,
-    'weight': weight,
-  };
-
-  factory ExerciseTemplate.fromJson(Map<String, dynamic> json) =>
-      ExerciseTemplate(
-        exerciseId: json['exercise_id'],
-        sets: json['sets'],
-        reps: json['reps'],
-        weight: json['weight']?.toDouble() ?? 0.0,
-      );
-}
-
-class WorkoutTemplate {
+@HiveType(typeId: 0)
+class WorkoutTemplate extends HiveObject {
+  @HiveField(0)
   final String id;
+  @HiveField(1)
   final String name;
+  @HiveField(2)
   final List<ExerciseTemplate> exercises;
 
   WorkoutTemplate({
@@ -53,5 +32,39 @@ class WorkoutTemplate {
             (json['exercises'] as List)
                 .map((e) => ExerciseTemplate.fromJson(e))
                 .toList(),
+      );
+}
+
+@HiveType(typeId: 1)
+class ExerciseTemplate extends HiveObject {
+  @HiveField(0)
+  final String exerciseId;
+  @HiveField(1)
+  final int sets;
+  @HiveField(2)
+  final int reps;
+  @HiveField(3)
+  final double weight;
+
+  ExerciseTemplate({
+    required this.exerciseId,
+    required this.sets,
+    required this.reps,
+    required this.weight,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'exercise_id': exerciseId,
+    'sets': sets,
+    'reps': reps,
+    'weight': weight,
+  };
+
+  factory ExerciseTemplate.fromJson(Map<String, dynamic> json) =>
+      ExerciseTemplate(
+        exerciseId: json['exercise_id'],
+        sets: json['sets'],
+        reps: json['reps'],
+        weight: (json['weight'] as num?)?.toDouble() ?? 0.0,
       );
 }

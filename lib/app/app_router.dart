@@ -1,6 +1,7 @@
 // lib/app/app_router.dart
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:kernel/core/models/workout_template.dart';
 import 'package:kernel/main.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -38,6 +39,29 @@ class AppRouter {
         GoRoute(
           path: '/workout/session',
           builder: (_, __) => const WorkoutSessionPage(),
+        ),
+        // Add these routes
+        GoRoute(
+          path: '/explore',
+          builder:
+              (_, __) => Scaffold(
+                backgroundColor: Colors.black,
+                appBar: AppBar(title: Text("Explore")),
+                body: const Center(
+                  child: Text(
+                    "Coming soon",
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                ),
+              ),
+        ),
+        GoRoute(path: '/workouts', builder: (_, __) => const WorkoutListPage()),
+        GoRoute(
+          path: '/workout/session',
+          builder: (_, state) {
+            final template = state.extra as WorkoutTemplate?;
+            return WorkoutSessionPage(template: template);
+          },
         ),
         GoRoute(path: '/', redirect: (_, __) => '/home'),
       ],

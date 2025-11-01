@@ -4,9 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:go_router/go_router.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 
 import 'features/auth/auth_page.dart';
 import 'features/home/home_page.dart';
+import 'app/app_router.dart';
+import 'core/models/workout_template.dart';
 
 class AuthStateNotifier extends ChangeNotifier {
   final SupabaseClient _supabase;
@@ -14,13 +17,10 @@ class AuthStateNotifier extends ChangeNotifier {
   bool get isLoading => _isLoading;
 
   AuthStateNotifier(this._supabase) {
-    // Listen to auth changes
-    _supabase.auth.onAuthStateChange.listen((data) {
+    _supabase.auth.onAuthStateChange.listen((_) {
       _isLoading = false;
       notifyListeners();
     });
-
-    // Trigger session recovery
     _supabase.auth.currentSession;
   }
 }
@@ -28,11 +28,18 @@ class AuthStateNotifier extends ChangeNotifier {
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // ---------- Supabase ----------
   await Supabase.initialize(
     url: 'https://mdijnmmvgxatevyxlyne.supabase.co',
     anonKey:
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1kaWpubW12Z3hhdGV2eXhseW5lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE0NTc4NDMsImV4cCI6MjA3NzAzMzg0M30.b-rBPczSrUnAQaVSIQ8gGKdrIEP6PpJz2K_obGjGPRM'  
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1kaWpubW12Z3hhdGV2eXhseW5lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE0NTc4NDMsImV4cCI6MjA3NzAzMzg0M30.b-rBPczSrUnAQaVSIQ8gGKdrIEP6PpJz2K_obGjGPRM',
   );
+
+  // ---------- Hive ----------
+  await Hive.initFlutter();
+  Hive.registerAdapter(WorkoutTemplateAdapter());
+  Hive.registerAdapter(ExerciseTemplateAdapter());
+  await Hive.openBox<WorkoutTemplate>('templates');
 
   runApp(const ProviderScope(child: KernelApp()));
 }
@@ -52,40 +59,10 @@ class _KernelAppState extends ConsumerState<KernelApp> {
   @override
   void initState() {
     super.initState();
-
     _authNotifier = AuthStateNotifier(_supabase);
-
-    _router = GoRouter(
-      initialLocation: '/',
+    _router = AppRouter.createRouter(
+      supabase: _supabase,
       refreshListenable: _authNotifier,
-      routes: [
-        GoRoute(path: '/auth', builder: (context, state) => const AuthPage()),
-        GoRoute(path: '/home', builder: (context, state) => const HomePage()),
-        GoRoute(
-          path: '/',
-          redirect: (context, state) => '/home',
-        ),
-      ],
-      redirect: (context, state) {
-        final isLoading = _authNotifier.isLoading;
-        final session = _supabase.auth.currentSession;
-        final isOnAuth = state.matchedLocation == '/auth';
-
-        if (isLoading) return null; // Wait
-
-        if (session == null) {
-          return '/auth';
-        }
-
-        if (isOnAuth) {
-          return '/home';
-        }
-
-        return null;
-      },
-      errorBuilder:
-          (context, state) =>
-              Scaffold(body: Center(child: Text('Error: ${state.error}'))),
     );
   }
 
@@ -94,7 +71,11 @@ class _KernelAppState extends ConsumerState<KernelApp> {
     return MaterialApp.router(
       title: 'Kernel',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData.dark(),
+      theme: ThemeData(
+        brightness: Brightness.dark,
+        scaffoldBackgroundColor: Colors.black,
+        appBarTheme: const AppBarTheme(backgroundColor: Colors.black),
+      ),
       routerConfig: _router,
     );
   }
