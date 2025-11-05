@@ -1,27 +1,34 @@
 // lib/core/models/workout_template.dart
 import 'package:hive/hive.dart';
 
-part 'workout_template.g.dart'; // THIS LINE IS CRITICAL
+part 'workout_template.g.dart';
 
 @HiveType(typeId: 0)
 class WorkoutTemplate extends HiveObject {
   @HiveField(0)
   final String id;
+
   @HiveField(1)
   final String name;
+
   @HiveField(2)
   final List<ExerciseTemplate> exercises;
+
+  @HiveField(3)
+  final String? routineName;
 
   WorkoutTemplate({
     required this.id,
     required this.name,
     required this.exercises,
+    this.routineName, required String routineId,
   });
 
   Map<String, dynamic> toJson() => {
     'id': id,
     'name': name,
     'exercises': exercises.map((e) => e.toJson()).toList(),
+    'routine_name': routineName,
   };
 
   factory WorkoutTemplate.fromJson(Map<String, dynamic> json) =>
@@ -32,6 +39,7 @@ class WorkoutTemplate extends HiveObject {
             (json['exercises'] as List)
                 .map((e) => ExerciseTemplate.fromJson(e))
                 .toList(),
+        routineName: json['routine_name'],
       );
 }
 
@@ -39,10 +47,13 @@ class WorkoutTemplate extends HiveObject {
 class ExerciseTemplate extends HiveObject {
   @HiveField(0)
   final String exerciseId;
+
   @HiveField(1)
   final int sets;
+
   @HiveField(2)
   final int reps;
+
   @HiveField(3)
   final double weight;
 

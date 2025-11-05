@@ -1,4 +1,4 @@
-// services/workout_service.dart (FULL FILE)
+// services/workout_service.dart
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:uuid/uuid.dart';
@@ -9,34 +9,54 @@ class WorkoutService {
   final _box = Hive.box<WorkoutTemplate>('templates');
   final _uuid = const Uuid();
 
-  Future<List<WorkoutTemplate>> getTemplates() async {
-    final userId = _supabase.auth.currentUser!.id;
-    final response = await _supabase
-        .from('workout_templates')
-        .select()
-        .eq('user_id', userId)
-        .order('created_at', ascending: false);
+  // GET ALL TEMPLATES + GROUP BY ROUTINE NAME
+  Future<Map<String, List<WorkoutTemplate>>> getRoutinesWithTemplates() async {
+    final userId = _supabase.auth.currentUser?.id;
+    if (userId == null) return {};
 
-    final templates =
-        (response as List)
-            .map(
-              (json) => WorkoutTemplate.fromJson({
-                ...json,
-                'id': json['id'].toString(), // Ensure string
-              }),
-            )
-            .toList();
+    try {
+      final response = await _supabase
+          .from('workout_templates')
+          .select()
+          .eq('user_id', userId)
+          .order('created_at', ascending: false);
 
-    // Sync to Hive
-    await _box.clear();
-    for (var t in templates) {
-      await _box.put(t.id, t);
+      final templates =
+          (response as List)
+              .map(
+                (json) => WorkoutTemplate.fromJson({
+                  ...json,
+                  'id': json['id'].toString(),
+                }),
+              )
+              .toList();
+
+      // Group by routineName
+      final Map<String, List<WorkoutTemplate>> grouped = {};
+      for (var t in templates) {
+        final key = t.routineName ?? 'Ungrouped';
+        grouped.putIfAbsent(key, () => []);
+        grouped[key]!.add(t);
+      }
+
+      // Sync to Hive
+      await _box.clear();
+      for (var t in templates) {
+        await _box.put(t.id, t);
+      }
+
+      return grouped;
+    } catch (e) {
+      print("getRoutinesWithTemplates error: $e");
+      return {};
     }
-
-    return templates;
   }
 
-  Future<void> saveTemplate(WorkoutTemplate template) async {
+  // SAVE TEMPLATE WITH ROUTINE NAME
+  Future<void> saveTemplate(
+    WorkoutTemplate template,
+    String? routineName,
+  ) async {
     final userId = _supabase.auth.currentUser!.id;
     final isNew = template.id.startsWith('local-');
 
@@ -44,11 +64,11 @@ class WorkoutService {
       'user_id': userId,
       'name': template.name,
       'exercises': template.exercises.map((e) => e.toJson()).toList(),
+      'routine_name': routineName,
     };
 
     String savedId;
     if (isNew) {
-      // Insert — let Supabase generate UUID
       final response =
           await _supabase
               .from('workout_templates')
@@ -57,7 +77,6 @@ class WorkoutService {
               .single();
       savedId = response['id'].toString();
     } else {
-      // Update
       savedId = template.id;
       await _supabase
           .from('workout_templates')
@@ -66,11 +85,11 @@ class WorkoutService {
           .eq('user_id', userId);
     }
 
-    // Update with real ID + sync Hive
     final savedTemplate = WorkoutTemplate(
       id: savedId,
       name: template.name,
       exercises: template.exercises,
+      routineName: routineName,
     );
     await _box.put(savedId, savedTemplate);
   }

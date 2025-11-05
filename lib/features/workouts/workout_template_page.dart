@@ -8,6 +8,13 @@ import '../../services/workout_service.dart';
 
 final workoutServiceProvider = Provider((ref) => WorkoutService());
 
+// NEW PROVIDER FOR ROUTINES
+final routinesProvider = FutureProvider<Map<String, List<WorkoutTemplate>>>((
+  ref,
+) {
+  return ref.read(workoutServiceProvider).getRoutinesWithTemplates();
+});
+
 class WorkoutTemplatePage extends ConsumerStatefulWidget {
   final WorkoutTemplate? template;
   const WorkoutTemplatePage({this.template, super.key});
@@ -101,7 +108,7 @@ class _WorkoutTemplatePageState extends ConsumerState<WorkoutTemplatePage> {
                                   ),
                                 ),
                                 Text(
-                                  "${ex.sets}×${ex.reps} @ ${ex.weight}kg",
+                                  "${ex.sets}x${ex.reps} @ ${ex.weight}kg",
                                   style: const TextStyle(color: Colors.grey),
                                 ),
                                 IconButton(
@@ -168,6 +175,7 @@ class _WorkoutTemplatePageState extends ConsumerState<WorkoutTemplatePage> {
     );
   }
 
+  // SAVE WITH ROUTINE NAME
   void _save() async {
     if (_nameController.text.trim().isEmpty) {
       ScaffoldMessenger.of(
@@ -176,14 +184,34 @@ class _WorkoutTemplatePageState extends ConsumerState<WorkoutTemplatePage> {
       return;
     }
 
+    // SHOW DIALOG FOR ROUTINE NAME
+    final routineName = await showDialog<String>(
+      context: context,
+      builder:
+          (_) => _RoutineNameDialog(initialValue: widget.template?.routineName),
+    );
+
+    if (routineName == null) return;
+
     final localTemplate = WorkoutTemplate(
       id: _id,
       name: _nameController.text.trim(),
       exercises: _exercises,
+      routineName: routineName.isEmpty ? null : routineName,
     );
 
     try {
-      await ref.read(workoutServiceProvider).saveTemplate(localTemplate);
+      // CALL saveTemplate(template, routineName)
+      await ref
+          .read(workoutServiceProvider)
+          .saveTemplate(
+            localTemplate,
+            routineName.isEmpty ? null : routineName,
+          );
+
+      // INVALIDATE ROUTINES PROVIDER
+      ref.invalidate(routinesProvider);
+
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -208,6 +236,62 @@ class _WorkoutTemplatePageState extends ConsumerState<WorkoutTemplatePage> {
   @override
   void dispose() {
     _nameController.dispose();
+    super.dispose();
+  }
+}
+
+// DIALOG FOR ROUTINE NAME
+class _RoutineNameDialog extends StatefulWidget {
+  final String? initialValue;
+  const _RoutineNameDialog({this.initialValue});
+
+  @override
+  State<_RoutineNameDialog> createState() => _RoutineNameDialogState();
+}
+
+class _RoutineNameDialogState extends State<_RoutineNameDialog> {
+  late TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialValue ?? '');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: const Color(0xFF1E1E1E),
+      title: const Text(
+        "Routine Group (optional)",
+        style: TextStyle(color: Colors.white),
+      ),
+      content: TextField(
+        controller: _controller,
+        style: const TextStyle(color: Colors.white),
+        decoration: const InputDecoration(
+          hintText: "e.g. PPL, Upper/Lower",
+          hintStyle: TextStyle(color: Colors.grey),
+          enabledBorder: UnderlineInputBorder(
+            borderSide: BorderSide(color: Colors.grey),
+          ),
+          focusedBorder: UnderlineInputBorder(
+            borderSide: BorderSide(color: Colors.blue),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, _controller.text),
+          child: const Text("Save", style: TextStyle(color: Colors.blue)),
+        ),
+      ],
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
     super.dispose();
   }
 }
