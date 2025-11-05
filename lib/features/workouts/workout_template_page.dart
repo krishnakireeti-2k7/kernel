@@ -36,7 +36,13 @@ class _WorkoutTemplatePageState extends ConsumerState<WorkoutTemplatePage> {
       backgroundColor: Colors.black,
       appBar: AppBar(
         backgroundColor: Colors.black,
-        title: Text(widget.template == null ? "New Routine" : "Edit Routine"),
+        title: Text(
+          widget.template == null ? "New Routine" : "Edit Routine",
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         actions: [
           TextButton(
             onPressed: _save,
@@ -48,16 +54,24 @@ class _WorkoutTemplatePageState extends ConsumerState<WorkoutTemplatePage> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
+            // NAME
             TextField(
               controller: _nameController,
               style: const TextStyle(color: Colors.white),
               decoration: const InputDecoration(
                 hintText: "Routine name",
                 hintStyle: TextStyle(color: Colors.grey),
-                border: UnderlineInputBorder(),
+                enabledBorder: UnderlineInputBorder(
+                  borderSide: BorderSide(color: Colors.grey),
+                ),
+                focusedBorder: UnderlineInputBorder(
+                  borderSide: BorderSide(color: Colors.blue),
+                ),
               ),
             ),
             const SizedBox(height: 24),
+
+            // EXERCISES
             Expanded(
               child:
                   _exercises.isEmpty
@@ -71,27 +85,61 @@ class _WorkoutTemplatePageState extends ConsumerState<WorkoutTemplatePage> {
                         itemCount: _exercises.length,
                         itemBuilder: (ctx, i) {
                           final ex = _exercises[i];
-                          return ListTile(
-                            title: Text(
-                              "Exercise ${i + 1}",
-                              style: const TextStyle(color: Colors.white),
+                          return Container(
+                            margin: const EdgeInsets.symmetric(vertical: 4),
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF1E1E1E),
+                              borderRadius: BorderRadius.circular(12),
                             ),
-                            subtitle: Text(
-                              "${ex.sets}×${ex.reps} @ ${ex.weight}kg",
-                            ),
-                            trailing: IconButton(
-                              icon: const Icon(Icons.delete, color: Colors.red),
-                              onPressed:
-                                  () => setState(() => _exercises.removeAt(i)),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    "Exercise ${i + 1}",
+                                    style: const TextStyle(color: Colors.white),
+                                  ),
+                                ),
+                                Text(
+                                  "${ex.sets}×${ex.reps} @ ${ex.weight}kg",
+                                  style: const TextStyle(color: Colors.grey),
+                                ),
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.delete,
+                                    color: Colors.red,
+                                  ),
+                                  onPressed:
+                                      () => setState(
+                                        () => _exercises.removeAt(i),
+                                      ),
+                                ),
+                              ],
                             ),
                           );
                         },
                       ),
             ),
-            ElevatedButton.icon(
-              onPressed: _addExercise,
-              icon: const Icon(Icons.add),
-              label: const Text("Add Exercise"),
+
+            // ADD BUTTON
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _addExercise,
+                icon: const Icon(Icons.add, color: Colors.white),
+                label: const Text(
+                  "Add Exercise",
+                  style: TextStyle(color: Colors.white),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF1E1E1E),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
             ),
           ],
         ),
@@ -121,13 +169,40 @@ class _WorkoutTemplatePageState extends ConsumerState<WorkoutTemplatePage> {
   }
 
   void _save() async {
-    final template = WorkoutTemplate(
+    if (_nameController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Enter a routine name")));
+      return;
+    }
+
+    final localTemplate = WorkoutTemplate(
       id: _id,
-      name: _nameController.text,
+      name: _nameController.text.trim(),
       exercises: _exercises,
     );
-    await ref.read(workoutServiceProvider).saveTemplate(template);
-    if (context.mounted) Navigator.pop(context);
+
+    try {
+      await ref.read(workoutServiceProvider).saveTemplate(localTemplate);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Saved!"),
+            backgroundColor: Colors.green,
+          ),
+        );
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Save failed: $e"),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   @override

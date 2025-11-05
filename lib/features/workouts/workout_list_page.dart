@@ -17,14 +17,17 @@ class WorkoutListPage extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: Colors.black,
-      appBar: AppBar(title: const Text("My Routines")),
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        title: const Text("My Routines", style: TextStyle(color: Colors.white)),
+      ),
       body: templatesAsync.when(
         data:
             (templates) =>
                 templates.isEmpty
                     ? const Center(
                       child: Text(
-                        "No routines",
+                        "No routines yet",
                         style: TextStyle(color: Colors.grey),
                       ),
                     )
@@ -32,28 +35,41 @@ class WorkoutListPage extends ConsumerWidget {
                       itemCount: templates.length,
                       itemBuilder: (ctx, i) {
                         final t = templates[i];
-                        return ListTile(
-                          title: Text(
-                            t.name,
-                            style: const TextStyle(color: Colors.white),
+                        return Container(
+                          margin: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 4,
                           ),
-                          subtitle: Text("${t.exercises.length} exercises"),
-                          onTap:
-                              () => Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder:
-                                      (_) => WorkoutTemplatePage(template: t),
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF1E1E1E),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  t.name,
+                                  style: const TextStyle(color: Colors.white),
                                 ),
                               ),
-                          trailing: IconButton(
-                            icon: const Icon(Icons.delete, color: Colors.red),
-                            onPressed: () async {
-                              await ref
-                                  .read(workoutServiceProvider)
-                                  .deleteTemplate(t.id);
-                              ref.invalidate(templatesProvider);
-                            },
+                              Text(
+                                "${t.exercises.length} ex",
+                                style: const TextStyle(color: Colors.grey),
+                              ),
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.delete,
+                                  color: Colors.red,
+                                ),
+                                onPressed: () async {
+                                  await ref
+                                      .read(workoutServiceProvider)
+                                      .deleteTemplate(t.id);
+                                  ref.invalidate(templatesProvider);
+                                },
+                              ),
+                            ],
                           ),
                         );
                       },
@@ -65,12 +81,13 @@ class WorkoutListPage extends ConsumerWidget {
             ),
       ),
       floatingActionButton: FloatingActionButton(
+        backgroundColor: const Color(0xFF1E1E1E),
         onPressed:
             () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const WorkoutTemplatePage()),
             ),
-        child: const Icon(Icons.add),
+        child: const Icon(Icons.add, color: Colors.white),
       ),
     );
   }

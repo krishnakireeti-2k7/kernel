@@ -1,15 +1,15 @@
 // lib/app/app_router.dart
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:kernel/core/models/workout_template.dart';
-import 'package:kernel/main.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../core/models/workout_template.dart';
 import '../features/auth/auth_page.dart';
 import '../features/home/home_page.dart';
 import '../features/workouts/workout_list_page.dart';
 import '../features/workouts/workout_template_page.dart';
 import '../features/workouts/workout_session_page.dart';
+import '../main.dart'; // For AuthStateNotifier
 
 class AppRouter {
   static GoRouter createRouter({
@@ -20,33 +20,48 @@ class AppRouter {
       initialLocation: '/',
       refreshListenable: refreshListenable,
       routes: [
+        // AUTH
         GoRoute(path: '/auth', builder: (_, __) => const AuthPage()),
+
+        // HOME
         GoRoute(path: '/home', builder: (_, __) => const HomePage()),
+
+        // MY ROUTINES LIST
         GoRoute(path: '/workouts', builder: (_, __) => const WorkoutListPage()),
+
+        // CREATE NEW ROUTINE
         GoRoute(
           path: '/workout/template',
           builder: (_, __) => const WorkoutTemplatePage(),
         ),
+
+        // EDIT EXISTING ROUTINE
         GoRoute(
           path: '/workout/template/edit/:id',
           builder: (context, state) {
             final id = state.pathParameters['id']!;
-            // TODO: fetch template from Hive / service
-            return const WorkoutTemplatePage(); // placeholder
+            // TODO: Fetch template by ID from service
+            // For now, pass null → new routine (fallback)
+            return const WorkoutTemplatePage(); // Will be fixed in Day 4
           },
         ),
-        // <-- dummy page so the router compiles
+
+        // START WORKOUT SESSION (with optional template)
         GoRoute(
           path: '/workout/session',
-          builder: (_, __) => const WorkoutSessionPage(),
+          builder: (_, state) {
+            final template = state.extra as WorkoutTemplate?;
+            return WorkoutSessionPage(template: template);
+          },
         ),
-        // Add these routes
+
+        // EXPLORE (placeholder)
         GoRoute(
           path: '/explore',
           builder:
               (_, __) => Scaffold(
                 backgroundColor: Colors.black,
-                appBar: AppBar(title: Text("Explore")),
+                appBar: AppBar(title: const Text("Explore")),
                 body: const Center(
                   child: Text(
                     "Coming soon",
@@ -55,16 +70,11 @@ class AppRouter {
                 ),
               ),
         ),
-        GoRoute(path: '/workouts', builder: (_, __) => const WorkoutListPage()),
-        GoRoute(
-          path: '/workout/session',
-          builder: (_, state) {
-            final template = state.extra as WorkoutTemplate?;
-            return WorkoutSessionPage(template: template);
-          },
-        ),
+
+        // ROOT REDIRECT
         GoRoute(path: '/', redirect: (_, __) => '/home'),
       ],
+
       redirect: (context, state) {
         final authNotifier = refreshListenable as AuthStateNotifier;
         final isLoading = authNotifier.isLoading;
@@ -76,9 +86,17 @@ class AppRouter {
         if (isOnAuth) return '/home';
         return null;
       },
+
       errorBuilder:
-          (_, state) =>
-              Scaffold(body: Center(child: Text('Error: ${state.error}'))),
+          (_, state) => Scaffold(
+            backgroundColor: Colors.black,
+            body: Center(
+              child: Text(
+                'Page not found: ${state.error}',
+                style: const TextStyle(color: Colors.red),
+              ),
+            ),
+          ),
     );
   }
 }
