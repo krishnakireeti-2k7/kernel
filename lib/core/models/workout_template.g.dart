@@ -8,7 +8,7 @@ part of 'workout_template.dart';
 
 class WorkoutTemplateAdapter extends TypeAdapter<WorkoutTemplate> {
   @override
-  final int typeId = 0;
+  final int typeId = 10;
 
   @override
   WorkoutTemplate read(BinaryReader reader) {
@@ -20,7 +20,7 @@ class WorkoutTemplateAdapter extends TypeAdapter<WorkoutTemplate> {
       id: fields[0] as String,
       name: fields[1] as String,
       exercises: (fields[2] as List).cast<ExerciseTemplate>(),
-      routineName: fields[3] as String?,
+      routineId: fields[3] as String,
     );
   }
 
@@ -35,7 +35,7 @@ class WorkoutTemplateAdapter extends TypeAdapter<WorkoutTemplate> {
       ..writeByte(2)
       ..write(obj.exercises)
       ..writeByte(3)
-      ..write(obj.routineName);
+      ..write(obj.routineId);
   }
 
   @override
@@ -51,7 +51,7 @@ class WorkoutTemplateAdapter extends TypeAdapter<WorkoutTemplate> {
 
 class ExerciseTemplateAdapter extends TypeAdapter<ExerciseTemplate> {
   @override
-  final int typeId = 1;
+  final int typeId = 11;
 
   @override
   ExerciseTemplate read(BinaryReader reader) {

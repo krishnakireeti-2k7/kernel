@@ -1,6 +1,8 @@
 // features/workouts/workout_template_page.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:kernel/features/home/home_page.dart';
 import 'package:kernel/services/exercise_picker_dialog.dart';
 import 'package:uuid/uuid.dart';
 import '../../core/models/workout_template.dart';
@@ -8,16 +10,10 @@ import '../../services/workout_service.dart';
 
 final workoutServiceProvider = Provider((ref) => WorkoutService());
 
-// NEW PROVIDER FOR ROUTINES
-final routinesProvider = FutureProvider<Map<String, List<WorkoutTemplate>>>((
-  ref,
-) {
-  return ref.read(workoutServiceProvider).getRoutinesWithTemplates();
-});
-
 class WorkoutTemplatePage extends ConsumerStatefulWidget {
   final WorkoutTemplate? template;
-  const WorkoutTemplatePage({this.template, super.key});
+  final String? initialRoutineId;
+  const WorkoutTemplatePage({this.template, this.initialRoutineId, super.key});
 
   @override
   ConsumerState<WorkoutTemplatePage> createState() =>
@@ -28,6 +24,7 @@ class _WorkoutTemplatePageState extends ConsumerState<WorkoutTemplatePage> {
   late TextEditingController _nameController;
   late List<ExerciseTemplate> _exercises;
   late String _id;
+  String? _routineId;
 
   @override
   void initState() {
@@ -35,6 +32,18 @@ class _WorkoutTemplatePageState extends ConsumerState<WorkoutTemplatePage> {
     _id = widget.template?.id ?? 'local-${const Uuid().v4()}';
     _nameController = TextEditingController(text: widget.template?.name ?? '');
     _exercises = List.from(widget.template?.exercises ?? []);
+    _routineId = widget.template?.routineId ?? widget.initialRoutineId;
+    // DO NOT USE GoRouterState.of(context) HERE
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // NOW SAFE: Context is ready
+    final extra = GoRouterState.of(context).extra;
+    if (extra is String && _routineId == null) {
+      _routineId = extra;
+    }
   }
 
   @override
@@ -44,13 +53,18 @@ class _WorkoutTemplatePageState extends ConsumerState<WorkoutTemplatePage> {
       appBar: AppBar(
         backgroundColor: Colors.black,
         title: Text(
-          widget.template == null ? "New Routine" : "Edit Routine",
+          widget.template == null ? "New Template" : "Edit Template",
           style: const TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,
           ),
         ),
         actions: [
+          if (widget.template != null)
+            IconButton(
+              icon: const Icon(Icons.delete, color: Colors.red),
+              onPressed: _deleteTemplate,
+            ),
           TextButton(
             onPressed: _save,
             child: const Text("Save", style: TextStyle(color: Colors.blue)),
@@ -61,24 +75,37 @@ class _WorkoutTemplatePageState extends ConsumerState<WorkoutTemplatePage> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            // NAME
             TextField(
               controller: _nameController,
               style: const TextStyle(color: Colors.white),
               decoration: const InputDecoration(
-                hintText: "Routine name",
+                hintText: "Name",
                 hintStyle: TextStyle(color: Colors.grey),
-                enabledBorder: UnderlineInputBorder(
-                  borderSide: BorderSide(color: Colors.grey),
-                ),
-                focusedBorder: UnderlineInputBorder(
-                  borderSide: BorderSide(color: Colors.blue),
-                ),
               ),
             ),
+            const SizedBox(height: 16),
+            if (_routineId != null)
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  "In: ${_routineId == 'uncategorized' ? 'Uncategorized' : 'Custom Folder'}",
+                  style: const TextStyle(color: Colors.blue),
+                ),
+              ),
+            if (_routineId == null)
+              TextButton.icon(
+                onPressed: _pickRoutine,
+                icon: const Icon(Icons.folder_open, color: Colors.blue),
+                label: const Text(
+                  "Pick Folder",
+                  style: TextStyle(color: Colors.blue),
+                ),
+              ),
             const SizedBox(height: 24),
-
-            // EXERCISES
             Expanded(
               child:
                   _exercises.isEmpty
@@ -90,62 +117,32 @@ class _WorkoutTemplatePageState extends ConsumerState<WorkoutTemplatePage> {
                       )
                       : ListView.builder(
                         itemCount: _exercises.length,
-                        itemBuilder: (ctx, i) {
+                        itemBuilder: (_, i) {
                           final ex = _exercises[i];
-                          return Container(
-                            margin: const EdgeInsets.symmetric(vertical: 4),
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF1E1E1E),
-                              borderRadius: BorderRadius.circular(12),
+                          return ListTile(
+                            title: Text(
+                              "Exercise ${i + 1}",
+                              style: const TextStyle(color: Colors.white),
                             ),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    "Exercise ${i + 1}",
-                                    style: const TextStyle(color: Colors.white),
-                                  ),
-                                ),
-                                Text(
-                                  "${ex.sets}x${ex.reps} @ ${ex.weight}kg",
-                                  style: const TextStyle(color: Colors.grey),
-                                ),
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.delete,
-                                    color: Colors.red,
-                                  ),
-                                  onPressed:
-                                      () => setState(
-                                        () => _exercises.removeAt(i),
-                                      ),
-                                ),
-                              ],
+                            subtitle: Text(
+                              "${ex.sets}x${ex.reps} @ ${ex.weight}kg",
+                              style: const TextStyle(color: Colors.grey),
+                            ),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.delete, color: Colors.red),
+                              onPressed:
+                                  () => setState(() => _exercises.removeAt(i)),
                             ),
                           );
                         },
                       ),
             ),
-
-            // ADD BUTTON
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: _addExercise,
-                icon: const Icon(Icons.add, color: Colors.white),
-                label: const Text(
-                  "Add Exercise",
-                  style: TextStyle(color: Colors.white),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF1E1E1E),
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
+            ElevatedButton.icon(
+              onPressed: _addExercise,
+              icon: const Icon(Icons.add),
+              label: const Text("Add Exercise"),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1E1E1E),
               ),
             ),
           ],
@@ -154,144 +151,146 @@ class _WorkoutTemplatePageState extends ConsumerState<WorkoutTemplatePage> {
     );
   }
 
-  void _addExercise() {
-    showDialog(
-      context: context,
-      builder:
-          (_) => ExercisePickerDialog(
-            onSelected: (id, name) {
-              setState(() {
-                _exercises.add(
-                  ExerciseTemplate(
-                    exerciseId: id,
-                    sets: 3,
-                    reps: 10,
-                    weight: 0,
-                  ),
-                );
-              });
-            },
+  // In _addExercise() — ADD mounted CHECK
+  Future<void> _addExercise() async {
+    final selected = await showExercisePicker(context);
+    if (selected != null && mounted) {
+      setState(() {
+        _exercises.add(
+          ExerciseTemplate(
+            exerciseId: selected.id,
+            sets: 3,
+            reps: 10,
+            weight: 0,
           ),
-    );
+        );
+      });
+    }
   }
 
-  // SAVE WITH ROUTINE NAME
-  void _save() async {
+  Future<void> _pickRoutine() async {
+    final service = ref.read(workoutServiceProvider);
+    final routines = await service.getRoutines();
+    if (!mounted) return;
+
+    final picked = await showDialog<String>(
+      context: context,
+      builder:
+          (_) => AlertDialog(
+            backgroundColor: const Color(0xFF1E1E1E),
+            title: const Text(
+              "Pick Folder",
+              style: TextStyle(color: Colors.white),
+            ),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: routines.length,
+                itemBuilder: (_, i) {
+                  final r = routines[i];
+                  return ListTile(
+                    leading: const Icon(Icons.folder, color: Colors.blue),
+                    title: Text(
+                      r.name,
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                    onTap: () => Navigator.pop(context, r.id),
+                  );
+                },
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text(
+                  "Cancel",
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ),
+            ],
+          ),
+    );
+
+    if (picked != null) setState(() => _routineId = picked);
+  }
+
+  // In _save() — ADD SUPABASE SYNC
+ void _save() async {
     if (_nameController.text.trim().isEmpty) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text("Enter a routine name")));
+      ).showSnackBar(const SnackBar(content: Text("Name is required")));
       return;
     }
 
-    // SHOW DIALOG FOR ROUTINE NAME
-    final routineName = await showDialog<String>(
-      context: context,
-      builder:
-          (_) => _RoutineNameDialog(initialValue: widget.template?.routineName),
-    );
+    _routineId ??= await ref.read(workoutServiceProvider).ensureUncategorized();
 
-    if (routineName == null) return;
-
-    final localTemplate = WorkoutTemplate(
+    final template = WorkoutTemplate(
       id: _id,
       name: _nameController.text.trim(),
       exercises: _exercises,
-      routineName: routineName.isEmpty ? null : routineName,
+      routineId: _routineId!,
     );
 
-    try {
-      // CALL saveTemplate(template, routineName)
-      await ref
-          .read(workoutServiceProvider)
-          .saveTemplate(
-            localTemplate,
-            routineName.isEmpty ? null : routineName,
-          );
+    await ref.read(workoutServiceProvider).saveTemplate(template, _routineId!);
 
-      // INVALIDATE ROUTINES PROVIDER
+    // FULL SYNC TO SUPABASE
+    await ref.read(workoutServiceProvider).syncToSupabase();
+
+    ref.invalidate(routinesProvider);
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Template saved!")));
+      context.pop();
+    }
+  }
+
+  void _deleteTemplate() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder:
+          (_) => AlertDialog(
+            backgroundColor: const Color(0xFF1E1E1E),
+            title: const Text(
+              "Delete Template?",
+              style: TextStyle(color: Colors.white),
+            ),
+            content: const Text(
+              "This cannot be undone.",
+              style: TextStyle(color: Colors.grey),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text(
+                  "Cancel",
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text(
+                  "Delete",
+                  style: TextStyle(color: Colors.red),
+                ),
+              ),
+            ],
+          ),
+    );
+
+    if (confirm == true && context.mounted) {
+      await ref.read(workoutServiceProvider).deleteTemplate(_id);
       ref.invalidate(routinesProvider);
-
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Saved!"),
-            backgroundColor: Colors.green,
-          ),
-        );
-        Navigator.pop(context);
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Save failed: $e"),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      context.pop();
     }
   }
 
   @override
   void dispose() {
     _nameController.dispose();
-    super.dispose();
-  }
-}
-
-// DIALOG FOR ROUTINE NAME
-class _RoutineNameDialog extends StatefulWidget {
-  final String? initialValue;
-  const _RoutineNameDialog({this.initialValue});
-
-  @override
-  State<_RoutineNameDialog> createState() => _RoutineNameDialogState();
-}
-
-class _RoutineNameDialogState extends State<_RoutineNameDialog> {
-  late TextEditingController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = TextEditingController(text: widget.initialValue ?? '');
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      backgroundColor: const Color(0xFF1E1E1E),
-      title: const Text(
-        "Routine Group (optional)",
-        style: TextStyle(color: Colors.white),
-      ),
-      content: TextField(
-        controller: _controller,
-        style: const TextStyle(color: Colors.white),
-        decoration: const InputDecoration(
-          hintText: "e.g. PPL, Upper/Lower",
-          hintStyle: TextStyle(color: Colors.grey),
-          enabledBorder: UnderlineInputBorder(
-            borderSide: BorderSide(color: Colors.grey),
-          ),
-          focusedBorder: UnderlineInputBorder(
-            borderSide: BorderSide(color: Colors.blue),
-          ),
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context, _controller.text),
-          child: const Text("Save", style: TextStyle(color: Colors.blue)),
-        ),
-      ],
-    );
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
     super.dispose();
   }
 }

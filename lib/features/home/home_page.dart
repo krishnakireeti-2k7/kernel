@@ -3,18 +3,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kernel/features/workouts/workout_template_page.dart';
+import '../../services/workout_service.dart';
 import '../../core/models/workout_template.dart';
 
-// NEW PROVIDER: GROUPED ROUTINES
-final routinesProvider = FutureProvider<Map<String, List<WorkoutTemplate>>>((
-  ref,
-) {
-  return ref.read(workoutServiceProvider).getRoutinesWithTemplates();
-});
+final routinesProvider =
+    FutureProvider.autoDispose<Map<String, List<WorkoutTemplate>>>((ref) {
+      return ref.read(workoutServiceProvider).getRoutinesWithTemplates();
+    });
 
 class HomePage extends ConsumerStatefulWidget {
   const HomePage({super.key});
-
   @override
   ConsumerState<HomePage> createState() => _HomePageState();
 }
@@ -30,7 +28,6 @@ class _HomePageState extends ConsumerState<HomePage> {
       backgroundColor: Colors.black,
       appBar: AppBar(
         backgroundColor: Colors.black,
-        elevation: 0,
         title: const Text(
           "Kernel",
           style: TextStyle(
@@ -45,24 +42,23 @@ class _HomePageState extends ConsumerState<HomePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // QUICK START
             _sectionTitle("Quick Start"),
             const SizedBox(height: 12),
             _quickStartCard(context),
-
             const SizedBox(height: 32),
-
-            // ROUTINES
             Row(
               children: [
                 _sectionTitle("Routines"),
                 const Spacer(),
+                _iconButton(
+                  Icons.create_new_folder,
+                  () => _showCreateRoutineDialog(context),
+                ),
+                const SizedBox(width: 8),
                 _iconButton(Icons.add, () => context.push('/workout/template')),
               ],
             ),
             const SizedBox(height: 24),
-
-            // MY ROUTINES — SMOOTH + GROUPED
             _myRoutinesSection(context, routinesAsync),
           ],
         ),
@@ -70,56 +66,93 @@ class _HomePageState extends ConsumerState<HomePage> {
     );
   }
 
-  Widget _sectionTitle(String text) {
-    return Text(
-      text,
-      style: const TextStyle(
-        color: Colors.white,
-        fontSize: 20,
-        fontWeight: FontWeight.bold,
-      ),
-    );
-  }
-
-  Widget _quickStartCard(BuildContext context) {
-    return GestureDetector(
-      onTap: () => context.push('/workout/session'),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: const Color(0xFF1E1E1E),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: const Row(
-          children: [
-            Icon(Icons.add, color: Colors.white70, size: 28),
-            SizedBox(width: 12),
-            Text(
-              "Start Empty",
-              style: TextStyle(color: Colors.white70, fontSize: 16),
+  void _showCreateRoutineDialog(BuildContext context) {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder:
+          (_) => AlertDialog(
+            backgroundColor: const Color(0xFF1E1E1E),
+            title: const Text(
+              "New Routine",
+              style: TextStyle(color: Colors.white),
             ),
-          ],
-        ),
-      ),
+            content: TextField(
+              controller: controller,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(
+                hintText: "Name",
+                hintStyle: TextStyle(color: Colors.grey),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text(
+                  "Cancel",
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ),
+              TextButton(
+                onPressed: () async {
+                  final name = controller.text.trim();
+                  if (name.isNotEmpty) {
+                    await ref.read(workoutServiceProvider).createRoutine(name);
+                    ref.invalidate(routinesProvider);
+                    if (context.mounted) Navigator.pop(context);
+                  }
+                },
+                child: const Text(
+                  "Create",
+                  style: TextStyle(color: Colors.blue),
+                ),
+              ),
+            ],
+          ),
     );
   }
 
-  Widget _iconButton(IconData icon, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: const Color(0xFF1E1E1E),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Icon(icon, color: Colors.white70, size: 20),
+  Widget _sectionTitle(String text) => Text(
+    text,
+    style: const TextStyle(
+      color: Colors.white,
+      fontSize: 20,
+      fontWeight: FontWeight.bold,
+    ),
+  );
+  Widget _quickStartCard(BuildContext context) => GestureDetector(
+    onTap: () => context.push('/workout/session'),
+    child: Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E1E1E),
+        borderRadius: BorderRadius.circular(16),
       ),
-    );
-  }
+      child: const Row(
+        children: [
+          Icon(Icons.add, color: Colors.white70, size: 28),
+          SizedBox(width: 12),
+          Text(
+            "Start Empty",
+            style: TextStyle(color: Colors.white70, fontSize: 16),
+          ),
+        ],
+      ),
+    ),
+  );
+  Widget _iconButton(IconData icon, VoidCallback onTap) => GestureDetector(
+    onTap: onTap,
+    child: Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E1E1E),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Icon(icon, color: Colors.white70, size: 20),
+    ),
+  );
 
-  // MY ROUTINES — SMOOTH VERTICAL COLLAPSE
   Widget _myRoutinesSection(
     BuildContext context,
     AsyncValue<Map<String, List<WorkoutTemplate>>> routinesAsync,
@@ -127,7 +160,6 @@ class _HomePageState extends ConsumerState<HomePage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // HEADER
         GestureDetector(
           onTap: () => setState(() => _isExpanded = !_isExpanded),
           child: Container(
@@ -156,12 +188,8 @@ class _HomePageState extends ConsumerState<HomePage> {
           ),
         ),
         const SizedBox(height: 8),
-
-        // CONTENT — SMOOTH VERTICAL
-        AnimatedContainer(
+        AnimatedSize(
           duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
-          height: _isExpanded ? null : 0,
           child:
               _isExpanded
                   ? Container(
@@ -179,7 +207,6 @@ class _HomePageState extends ConsumerState<HomePage> {
     );
   }
 
-  // BUILD GROUPED LIST
   Widget _buildRoutineList(
     AsyncValue<Map<String, List<WorkoutTemplate>>> routinesAsync,
     BuildContext context,
@@ -189,10 +216,10 @@ class _HomePageState extends ConsumerState<HomePage> {
         if (grouped.isEmpty) {
           return Center(
             child: TextButton.icon(
-              onPressed: () => context.push('/workouts'),
-              icon: const Icon(Icons.add, color: Colors.blue),
+              onPressed: () => _showCreateRoutineDialog(context),
+              icon: const Icon(Icons.create_new_folder, color: Colors.blue),
               label: const Text(
-                "Create your first routine",
+                "Create first routine",
                 style: TextStyle(color: Colors.blue),
               ),
             ),
@@ -217,33 +244,33 @@ class _HomePageState extends ConsumerState<HomePage> {
                 borderRadius: BorderRadius.circular(10),
               ),
               child: ExpansionTile(
-                tilePadding: EdgeInsets.zero,
-                childrenPadding: const EdgeInsets.only(left: 8),
+                leading: const Icon(Icons.folder, color: Colors.blue),
                 title: Text(
                   routineName,
                   style: const TextStyle(
                     color: Colors.white,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
                 children:
                     templates
                         .map(
                           (t) => ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            title: Text(
-                              "  ${t.name}",
-                              style: const TextStyle(
-                                color: Colors.white70,
-                                fontSize: 14,
-                              ),
+                            leading: const Icon(
+                              Icons.fitness_center,
+                              color: Colors.grey,
                             ),
-                            trailing: Text(
-                              "${t.exercises.length} ex",
-                              style: const TextStyle(
-                                color: Colors.grey,
-                                fontSize: 12,
-                              ),
+                            title: Text(
+                              " ${t.name}",
+                              style: const TextStyle(color: Colors.white70),
+                            ),
+                            subtitle: Text(
+                              "${t.exercises.length} exercises",
+                              style: const TextStyle(color: Colors.grey),
+                            ),
+                            trailing: const Icon(
+                              Icons.chevron_right,
+                              color: Colors.grey,
                             ),
                             onTap:
                                 () =>
@@ -265,8 +292,55 @@ class _HomePageState extends ConsumerState<HomePage> {
             ),
           ),
       error:
-          (_, __) =>
-              const Text("Failed to load", style: TextStyle(color: Colors.red)),
+          (_, __) => const Text("Failed", style: TextStyle(color: Colors.red)),
     );
+  }
+
+  void _deleteRoutine(String id) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder:
+          (_) => AlertDialog(
+            backgroundColor: const Color(0xFF1E1E1E),
+            title: const Text(
+              "Delete Folder?",
+              style: TextStyle(color: Colors.white),
+            ),
+            content: const Text(
+              "All templates will move to Uncategorized.",
+              style: TextStyle(color: Colors.grey),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text(
+                  "Cancel",
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text(
+                  "Delete",
+                  style: TextStyle(color: Colors.red),
+                ),
+              ),
+            ],
+          ),
+    );
+
+    if (confirm == true) {
+      final service = ref.read(workoutServiceProvider);
+      final routines = await service.getRoutines();
+      final routine = routines.firstWhere((r) => r.id == id);
+      final uncatId = await service.ensureUncategorized();
+
+      for (final t in routine.templates) {
+        await service.saveTemplate(t.copyWith(routineId: uncatId), uncatId);
+      }
+
+      await service.deleteRoutine(id);
+      ref.invalidate(routinesProvider);
+    }
   }
 }

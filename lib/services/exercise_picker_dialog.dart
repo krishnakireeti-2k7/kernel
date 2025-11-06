@@ -5,8 +5,14 @@ import '../../services/exercise_catalog_service.dart';
 
 final exerciseCatalogProvider = Provider((ref) => ExerciseCatalogService());
 
+class ExercisePick {
+  final String id;
+  final String name;
+  ExercisePick({required this.id, required this.name});
+}
+
 class ExercisePickerDialog extends ConsumerStatefulWidget {
-  final Function(String id, String name) onSelected;
+  final Function(ExercisePick) onSelected;
   const ExercisePickerDialog({required this.onSelected, super.key});
 
   @override
@@ -28,15 +34,17 @@ class _ExercisePickerDialogState extends ConsumerState<ExercisePickerDialog> {
   void _search() async {
     final query = _controller.text;
     if (query.length < 2) {
-      setState(() => _results = []);
+      if (mounted) setState(() => _results = []);
       return;
     }
-    setState(() => _loading = true);
+    if (mounted) setState(() => _loading = true);
     final results = await ref.read(exerciseCatalogProvider).search(query);
-    setState(() {
-      _results = results;
-      _loading = false;
-    });
+    if (mounted) {
+      setState(() {
+        _results = results;
+        _loading = false;
+      });
+    }
   }
 
   @override
@@ -81,7 +89,9 @@ class _ExercisePickerDialogState extends ConsumerState<ExercisePickerDialog> {
                           style: const TextStyle(color: Colors.grey),
                         ),
                         onTap: () {
-                          widget.onSelected(ex['id'], ex['name']);
+                          widget.onSelected(
+                            ExercisePick(id: ex['id'], name: ex['name']),
+                          );
                           Navigator.pop(context);
                         },
                       );
@@ -91,12 +101,30 @@ class _ExercisePickerDialogState extends ConsumerState<ExercisePickerDialog> {
           ],
         ),
       ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text("Cancel", style: TextStyle(color: Colors.grey)),
+        ),
+      ],
     );
   }
 
   @override
   void dispose() {
+    _controller.removeListener(_search);
     _controller.dispose();
     super.dispose();
   }
+}
+
+// CRITICAL: RETURNS ExercisePick?
+Future<ExercisePick?> showExercisePicker(BuildContext context) async {
+  return showDialog<ExercisePick>(
+    context: context,
+    builder:
+        (_) => ExercisePickerDialog(
+          onSelected: (pick) => Navigator.pop(context, pick),
+        ),
+  );
 }

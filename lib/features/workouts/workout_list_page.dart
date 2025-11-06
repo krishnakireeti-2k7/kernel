@@ -1,15 +1,13 @@
 // features/workouts/workout_list_page.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:kernel/core/models/workout_template.dart';
 import '../../services/workout_service.dart';
+import '../../core/models/routine.dart';
 import 'workout_template_page.dart';
 
-// NEW PROVIDER: GROUPED ROUTINES
-final routinesProvider =
-    FutureProvider.autoDispose<Map<String, List<WorkoutTemplate>>>((ref) {
-      return ref.read(workoutServiceProvider).getRoutinesWithTemplates();
-    });
+final routinesProvider = FutureProvider.autoDispose<List<Routine>>((ref) {
+  return ref.read(workoutServiceProvider).getRoutines();
+});
 
 class WorkoutListPage extends ConsumerWidget {
   const WorkoutListPage({super.key});
@@ -25,8 +23,8 @@ class WorkoutListPage extends ConsumerWidget {
         title: const Text("My Routines", style: TextStyle(color: Colors.white)),
       ),
       body: routinesAsync.when(
-        data: (grouped) {
-          if (grouped.isEmpty) {
+        data: (routines) {
+          if (routines.isEmpty) {
             return const Center(
               child: Text(
                 "No routines yet",
@@ -35,15 +33,11 @@ class WorkoutListPage extends ConsumerWidget {
             );
           }
 
-          final keys = grouped.keys.toList();
-
           return ListView.builder(
             padding: const EdgeInsets.all(16),
-            itemCount: keys.length,
-            itemBuilder: (ctx, i) {
-              final routineName = keys[i];
-              final templates = grouped[routineName]!;
-
+            itemCount: routines.length,
+            itemBuilder: (_, i) {
+              final r = routines[i];
               return Container(
                 margin: const EdgeInsets.symmetric(vertical: 8),
                 padding: const EdgeInsets.all(16),
@@ -54,9 +48,8 @@ class WorkoutListPage extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // ROUTINE NAME
                     Text(
-                      routineName,
+                      r.name,
                       style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
@@ -64,9 +57,7 @@ class WorkoutListPage extends ConsumerWidget {
                       ),
                     ),
                     const SizedBox(height: 8),
-
-                    // TEMPLATES UNDER ROUTINE
-                    ...templates.map(
+                    ...r.templates.map(
                       (t) => Container(
                         margin: const EdgeInsets.symmetric(vertical: 4),
                         padding: const EdgeInsets.symmetric(
@@ -111,7 +102,7 @@ class WorkoutListPage extends ConsumerWidget {
         loading: () => const Center(child: CircularProgressIndicator()),
         error:
             (_, __) => const Center(
-              child: Text("Error loading", style: TextStyle(color: Colors.red)),
+              child: Text("Error", style: TextStyle(color: Colors.red)),
             ),
       ),
       floatingActionButton: FloatingActionButton(

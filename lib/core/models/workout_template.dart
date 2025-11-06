@@ -1,10 +1,10 @@
-// lib/core/models/workout_template.dart
+// core/models/workout_template.dart
 import 'package:hive/hive.dart';
 
 part 'workout_template.g.dart';
 
-@HiveType(typeId: 0)
-class WorkoutTemplate extends HiveObject {
+@HiveType(typeId: 10) // CHANGED FROM 0
+class WorkoutTemplate {
   @HiveField(0)
   final String id;
 
@@ -15,36 +15,32 @@ class WorkoutTemplate extends HiveObject {
   final List<ExerciseTemplate> exercises;
 
   @HiveField(3)
-  final String? routineName;
+  final String routineId;
 
   WorkoutTemplate({
     required this.id,
     required this.name,
     required this.exercises,
-    this.routineName, required String routineId,
+    required this.routineId,
   });
 
-  Map<String, dynamic> toJson() => {
-    'id': id,
-    'name': name,
-    'exercises': exercises.map((e) => e.toJson()).toList(),
-    'routine_name': routineName,
-  };
-
-  factory WorkoutTemplate.fromJson(Map<String, dynamic> json) =>
-      WorkoutTemplate(
-        id: json['id'],
-        name: json['name'],
-        exercises:
-            (json['exercises'] as List)
-                .map((e) => ExerciseTemplate.fromJson(e))
-                .toList(),
-        routineName: json['routine_name'],
-      );
+  WorkoutTemplate copyWith({
+    String? id,
+    String? name,
+    List<ExerciseTemplate>? exercises,
+    String? routineId,
+  }) {
+    return WorkoutTemplate(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      exercises: exercises ?? this.exercises,
+      routineId: routineId ?? this.routineId,
+    );
+  }
 }
 
-@HiveType(typeId: 1)
-class ExerciseTemplate extends HiveObject {
+@HiveType(typeId: 11) // CHANGED FROM 1
+class ExerciseTemplate {
   @HiveField(0)
   final String exerciseId;
 
@@ -63,19 +59,4 @@ class ExerciseTemplate extends HiveObject {
     required this.reps,
     required this.weight,
   });
-
-  Map<String, dynamic> toJson() => {
-    'exercise_id': exerciseId,
-    'sets': sets,
-    'reps': reps,
-    'weight': weight,
-  };
-
-  factory ExerciseTemplate.fromJson(Map<String, dynamic> json) =>
-      ExerciseTemplate(
-        exerciseId: json['exercise_id'],
-        sets: json['sets'],
-        reps: json['reps'],
-        weight: (json['weight'] as num?)?.toDouble() ?? 0.0,
-      );
 }
