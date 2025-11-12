@@ -233,17 +233,19 @@ class _WorkoutTemplatePageState extends ConsumerState<WorkoutTemplatePage> {
       routineId: _routineId!,
     );
 
+    // SAVE LOCALLY
     await ref.read(workoutServiceProvider).saveTemplate(template, _routineId!);
 
     // FULL SYNC TO SUPABASE
     await ref.read(workoutServiceProvider).syncToSupabase();
 
+    // REFRESH HOME
     ref.invalidate(routinesProvider);
 
     if (context.mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Template saved!")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Template saved to Supabase!")),
+      );
       context.pop();
     }
   }

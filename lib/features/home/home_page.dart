@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:kernel/features/workouts/workout_template_page.dart';
 import '../../services/workout_service.dart';
 import '../../core/models/workout_template.dart';
+import '../../core/models/routine.dart'; // ADD THIS
 
 final routinesProvider =
     FutureProvider.autoDispose<Map<String, List<WorkoutTemplate>>>((ref) {
@@ -252,6 +253,27 @@ class _HomePageState extends ConsumerState<HomePage> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
+                trailing:
+                    routineName != 'Uncategorized'
+                        ? IconButton(
+                          icon: const Icon(Icons.delete, color: Colors.red),
+                          onPressed: () async {
+                            final routines =
+                                await ref
+                                    .read(workoutServiceProvider)
+                                    .getRoutines();
+                            final routine = routines.firstWhere(
+                              (r) => r.name == routineName,
+                              orElse:
+                                  () =>
+                                      Routine(id: '', name: '', templates: []),
+                            );
+                            if (routine.id.isNotEmpty) {
+                              _deleteRoutine(routine.id);
+                            }
+                          },
+                        )
+                        : null,
                 children:
                     templates
                         .map(
@@ -329,18 +351,24 @@ class _HomePageState extends ConsumerState<HomePage> {
           ),
     );
 
-    if (confirm == true) {
-      final service = ref.read(workoutServiceProvider);
-      final routines = await service.getRoutines();
-      final routine = routines.firstWhere((r) => r.id == id);
-      final uncatId = await service.ensureUncategorized();
+    if (confirm != true) return;
 
-      for (final t in routine.templates) {
-        await service.saveTemplate(t.copyWith(routineId: uncatId), uncatId);
-      }
+    final service = ref.read(workoutServiceProvider);
+    final routines = await service.getRoutines();
 
-      await service.deleteRoutine(id);
-      ref.invalidate(routinesProvider);
+    final routine = routines.firstWhere(
+      (r) => r.id == id,
+      orElse: () => Routine(id: '', name: '', templates: []),
+    );
+
+    if (routine.id.isEmpty) return;
+
+    final uncatId = await service.ensureUncategorized();
+    for (final t in routine.templates) {
+      await service.saveTemplate(t.copyWith(routineId: uncatId), uncatId);
     }
+
+    await service.deleteRoutine(id);
+    ref.invalidate(routinesProvider);
   }
 }

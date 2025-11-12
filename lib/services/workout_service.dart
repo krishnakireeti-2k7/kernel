@@ -21,6 +21,7 @@ class WorkoutService {
   factory WorkoutService() => _instance;
 
   // GET GROUPED ROUTINES — USE TEMPLATES' routineId
+  // services/workout_service.dart — REPLACE getRoutinesWithTemplates()
   Future<Map<String, List<WorkoutTemplate>>> getRoutinesWithTemplates() async {
     await ensureUncategorized();
 
@@ -32,13 +33,22 @@ class WorkoutService {
       grouped[r.name] = [];
     }
 
-    // Group templates by routineId
+    // Group templates safely
     for (final t in _templateBox.values) {
       final routine = routines.firstWhere(
         (r) => r.id == t.routineId,
-        orElse: () => routines.firstWhere((r) => r.id == _uncategorizedId),
+        orElse:
+            () => routines.firstWhere(
+              (r) => r.id == 'uncategorized',
+              orElse:
+                  () => Routine(
+                    id: 'uncategorized',
+                    name: 'Uncategorized',
+                    templates: [],
+                  ),
+            ),
       );
-      grouped[routine.name]!.add(t);
+      grouped[routine.name] = grouped[routine.name]!..add(t);
     }
 
     return grouped;
@@ -261,7 +271,7 @@ class WorkoutService {
               .toList(),
     }, onConflict: 'id');
   }
-
+  
   // PRIVATE: SYNC SINGLE ROUTINE
   Future<void> _syncSingleRoutine(Routine routine) async {
     final supabase = Supabase.instance.client;
