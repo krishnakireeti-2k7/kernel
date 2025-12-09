@@ -20,34 +20,24 @@ class WorkoutService {
   static final WorkoutService _instance = WorkoutService._();
   factory WorkoutService() => _instance;
 
-  // GET GROUPED ROUTINES — USE TEMPLATES' routineId
-  // services/workout_service.dart — REPLACE getRoutinesWithTemplates()
+  // GET GROUPED ROUTINES — Uses Template's routineId as Source of Truth
   Future<Map<String, List<WorkoutTemplate>>> getRoutinesWithTemplates() async {
     await ensureUncategorized();
 
-    final routines = _routineBox.values.toList();
+    final routinesMap = {for (var r in _routineBox.values) r.id: r};
     final Map<String, List<WorkoutTemplate>> grouped = {};
 
-    // Initialize all routine names
-    for (final r in routines) {
-      grouped[r.name] = [];
+    // 1. Initialize the grouped map with all routine names
+    for (final routine in routinesMap.values) {
+      grouped[routine.name] = [];
     }
 
-    // Group templates safely
+    // 2. Group templates based on their routineId (the single source of truth)
     for (final t in _templateBox.values) {
-      final routine = routines.firstWhere(
-        (r) => r.id == t.routineId,
-        orElse:
-            () => routines.firstWhere(
-              (r) => r.id == 'uncategorized',
-              orElse:
-                  () => Routine(
-                    id: 'uncategorized',
-                    name: 'Uncategorized',
-                    templates: [],
-                  ),
-            ),
-      );
+      final routineId = t.routineId;
+
+      final routine = routinesMap[routineId] ?? routinesMap[_uncategorizedId]!;
+
       grouped[routine.name] = grouped[routine.name]!..add(t);
     }
 
@@ -69,7 +59,7 @@ class WorkoutService {
     return _uncategorizedId;
   }
 
-  // SAVE TEMPLATE — SAFE routineId
+  // SAVE TEMPLATE — FIX: Removed redundant local routine update
   Future<void> saveTemplate(WorkoutTemplate template, String routineId) async {
     final String safeRoutineId =
         routineId.isEmpty || routineId == 'null' || routineId == 'uncategorized'
@@ -79,19 +69,14 @@ class WorkoutService {
     final updatedTemplate = template.copyWith(routineId: safeRoutineId);
     await _templateBox.put(updatedTemplate.id, updatedTemplate);
 
-    final routine = _routineBox.get(safeRoutineId);
-    if (routine != null) {
-      final updated =
-          routine.templates
-            ..removeWhere((t) => t.id == template.id)
-            ..add(updatedTemplate);
-      await _routineBox.put(
-        safeRoutineId,
-        Routine(id: routine.id, name: routine.name, templates: updated),
-      );
-    }
+    // *** FIX: Removed local update of Routine.templates list ***
 
     await _syncSingleTemplate(updatedTemplate);
+
+    final routineToUpdate = _routineBox.get(safeRoutineId);
+    if (routineToUpdate != null) {
+      await _syncSingleRoutine(routineToUpdate);
+    }
   }
 
   // DELETE TEMPLATE
@@ -99,40 +84,22 @@ class WorkoutService {
     final template = _templateBox.get(id);
     if (template == null) return;
 
+    final routineId = template.routineId;
     await _templateBox.delete(id);
 
-    final routine = _routineBox.get(template.routineId);
-    if (routine != null) {
-      final updated = routine.templates..removeWhere((t) => t.id == id);
-      await _routineBox.put(
-        template.routineId,
-        Routine(id: routine.id, name: routine.name, templates: updated),
-      );
-    }
+    // *** FIX: Removed local update of Routine.templates list ***
 
     await _deleteTemplateFromCloud(id);
+
+    final routineToUpdate = _routineBox.get(routineId);
+    if (routineToUpdate != null) {
+      await _syncSingleRoutine(routineToUpdate);
+    }
   }
 
-  // GET ROUTINES
+  // GET ROUTINES — FIX: Removed error-prone local validation loop
   Future<List<Routine>> getRoutines() async {
     await ensureUncategorized();
-
-    final routines = _routineBox.values.toList();
-
-    for (final routine in routines) {
-      final templates =
-          _templateBox.values.where((t) => t.routineId == routine.id).toList();
-      if (templates.length != routine.templates.length ||
-          !templates.every(
-            (t) => routine.templates.any((rt) => rt.id == t.id),
-          )) {
-        await _routineBox.put(
-          routine.id,
-          Routine(id: routine.id, name: routine.name, templates: templates),
-        );
-      }
-    }
-
     return _routineBox.values.toList();
   }
 
@@ -147,20 +114,26 @@ class WorkoutService {
     return id;
   }
 
-  // DELETE ROUTINE
+  // DELETE ROUTINE — FIX: Encapsulated template migration
   Future<void> deleteRoutine(String id) async {
     final routine = _routineBox.get(id);
     if (routine == null || routine.id == _uncategorizedId) return;
 
     final uncatId = await ensureUncategorized();
-    for (final t in routine.templates) {
-      await saveTemplate(t.copyWith(routineId: uncatId), uncatId);
+
+    // 1. Reassign templates to 'Uncategorized' using the safe saveTemplate()
+    final templatesToMove =
+        _templateBox.values.where((t) => t.routineId == id).toList();
+    for (final t in templatesToMove) {
+      await saveTemplate(t, uncatId);
     }
+
+    // 2. Delete the routine from local and cloud
     await _routineBox.delete(id);
     await _deleteRoutineFromCloud(id);
   }
 
-  // PULL FROM SUPABASE → LOCAL (NULL SAFE)
+  // PULL FROM SUPABASE → LOCAL (Logic is correct for pulling and recreating local cache)
   Future<void> syncFromSupabase() async {
     final supabase = Supabase.instance.client;
     final userId = supabase.auth.currentUser?.id;
@@ -179,7 +152,6 @@ class WorkoutService {
       await _templateBox.clear();
       await _routineBox.clear();
 
-      // Load templates — NULL → FIXED UUID
       for (final t in templateRes as List) {
         final exercises =
             (t['exercises'] as List)
@@ -207,7 +179,6 @@ class WorkoutService {
         await _templateBox.put(template.id, template);
       }
 
-      // Load routines — NULL SAFE
       for (final r in routineRes as List) {
         final rawIds = r['template_ids'] as List<dynamic>?;
         final templateIds = rawIds?.cast<String>() ?? <String>[];
@@ -271,18 +242,24 @@ class WorkoutService {
               .toList(),
     }, onConflict: 'id');
   }
-  
-  // PRIVATE: SYNC SINGLE ROUTINE
+
+  // PRIVATE: SYNC SINGLE ROUTINE — FIX: Derives template_ids from template box
   Future<void> _syncSingleRoutine(Routine routine) async {
     final supabase = Supabase.instance.client;
     final userId = supabase.auth.currentUser?.id;
     if (userId == null) return;
 
+    final templateIds =
+        _templateBox.values
+            .where((t) => t.routineId == routine.id)
+            .map((t) => t.id)
+            .toList();
+
     await supabase.from('routines').upsert({
       'id': routine.id,
       'user_id': userId,
       'name': routine.name,
-      'template_ids': routine.templates.map((t) => t.id).toList(),
+      'template_ids': templateIds,
       'parent_id': null,
       'created_at': DateTime.now().toIso8601String(),
       'updated_at': DateTime.now().toIso8601String(),

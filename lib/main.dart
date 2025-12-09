@@ -1,30 +1,34 @@
 // lib/main.dart
 import 'dart:async';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
-import 'features/auth/auth_page.dart';
-import 'features/home/home_page.dart';
 import 'app/app_router.dart';
 import 'core/models/workout_template.dart';
 import 'core/models/routine.dart';
-import 'services/workout_service.dart';
+import 'providers/app_providers.dart';
 
+// AuthStateNotifier class remains the same
 class AuthStateNotifier extends ChangeNotifier {
   final SupabaseClient _supabase;
   bool _isLoading = true;
+  Session? _currentSession;
+
   bool get isLoading => _isLoading;
+  Session? get currentSession => _currentSession;
 
   AuthStateNotifier(this._supabase) {
-    _supabase.auth.onAuthStateChange.listen((_) {
+    _currentSession = _supabase.auth.currentSession;
+    _isLoading = false;
+
+    _supabase.auth.onAuthStateChange.listen((data) {
+      _currentSession = data.session;
       _isLoading = false;
       notifyListeners();
     });
-    _supabase.auth.currentSession;
   }
 }
 
@@ -35,25 +39,24 @@ Future<void> main() async {
     url: 'https://mdijnmmvgxatevyxlyne.supabase.co',
     anonKey:
         'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1kaWpubW12Z3hhdGV2eXhseW5lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE0NTc4NDMsImV4cCI6MjA3NzAzMzg0M30.b-rBPczSrUnAQaVSIQ8gGKdrIEP6PpJz2K_obGjGPRM',
+
+    realtimeClientOptions: const RealtimeClientOptions(),
+
+    // The simplified AuthOptions to prevent parameter errors in recent Supabase versions
+    authOptions: const FlutterAuthClientOptions(),
   );
 
   await Hive.initFlutter();
-
   Hive.registerAdapter(WorkoutTemplateAdapter());
   Hive.registerAdapter(ExerciseTemplateAdapter());
   Hive.registerAdapter(RoutineAdapter());
-
   await Hive.openBox<WorkoutTemplate>('templates');
   await Hive.openBox<Routine>('routines');
-
-  // SYNC: CLOUD → LOCAL → CLOUD
-  final service = WorkoutService();
-  await service.syncFromSupabase();
-  await service.syncToSupabase(); // PUSH LOCAL → CLOUD
 
   runApp(const ProviderScope(child: KernelApp()));
 }
 
+// KernelApp and _KernelAppState remain the same
 class KernelApp extends ConsumerStatefulWidget {
   const KernelApp({super.key});
   @override
@@ -62,16 +65,14 @@ class KernelApp extends ConsumerStatefulWidget {
 
 class _KernelAppState extends ConsumerState<KernelApp> {
   late final GoRouter _router;
-  late final AuthStateNotifier _authNotifier;
-  final _supabase = Supabase.instance.client;
 
   @override
   void initState() {
     super.initState();
-    _authNotifier = AuthStateNotifier(_supabase);
+    final authNotifier = ref.read(authStateNotifierProvider);
     _router = AppRouter.createRouter(
-      supabase: _supabase,
-      refreshListenable: _authNotifier,
+      supabase: Supabase.instance.client,
+      refreshListenable: authNotifier,
     );
   }
 

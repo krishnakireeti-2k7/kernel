@@ -9,7 +9,7 @@ import '../features/home/home_page.dart';
 import '../features/workouts/workout_list_page.dart';
 import '../features/workouts/workout_template_page.dart';
 import '../features/workouts/workout_session_page.dart';
-import '../main.dart'; // For AuthStateNotifier
+import '../main.dart';
 
 class AppRouter {
   static GoRouter createRouter({
@@ -41,8 +41,7 @@ class AppRouter {
           builder: (context, state) {
             final id = state.pathParameters['id']!;
             // TODO: Fetch template by ID from service
-            // For now, pass null → new routine (fallback)
-            return const WorkoutTemplatePage(); // Will be fixed in Day 4
+            return const WorkoutTemplatePage();
           },
         ),
 
@@ -77,13 +76,18 @@ class AppRouter {
 
       redirect: (context, state) {
         final authNotifier = refreshListenable as AuthStateNotifier;
+        final session = authNotifier.currentSession;
         final isLoading = authNotifier.isLoading;
-        final session = supabase.auth.currentSession;
         final isOnAuth = state.matchedLocation == '/auth';
 
         if (isLoading) return null;
-        if (session == null) return '/auth';
+
+        if (session == null) {
+          return isOnAuth ? null : '/auth';
+        }
+
         if (isOnAuth) return '/home';
+
         return null;
       },
 

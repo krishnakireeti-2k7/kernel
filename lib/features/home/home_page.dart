@@ -1,11 +1,14 @@
 // features/home/home_page.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:kernel/features/workouts/workout_template_page.dart';
+import 'package:supabase_flutter/supabase_flutter.dart'; // <<< NEW: Import Supabase for sign out functionality
+
 import '../../services/workout_service.dart';
 import '../../core/models/workout_template.dart';
-import '../../core/models/routine.dart'; // ADD THIS
+import '../../core/models/routine.dart';
+import '../../providers/app_providers.dart'; // This is the single, correct source for providers
 
 final routinesProvider =
     FutureProvider.autoDispose<Map<String, List<WorkoutTemplate>>>((ref) {
@@ -21,9 +24,28 @@ class HomePage extends ConsumerStatefulWidget {
 class _HomePageState extends ConsumerState<HomePage> {
   bool _isExpanded = false;
 
+  // <<< NEW: Sign out method
+  Future<void> _signOut() async {
+    try {
+      await Supabase.instance.client.auth.signOut();
+      // Router will handle navigation automatically due to AuthStateNotifier
+      // but a fresh context push is good practice if needed:
+      // if (mounted) context.go('/sign-in');
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error signing out: $e')));
+      }
+    }
+  }
+  // -----------------------------
+
   @override
   Widget build(BuildContext context) {
+    // *** FIX: Added missing build method and used initialSyncProvider ***
     final routinesAsync = ref.watch(routinesProvider);
+    final initialSync = ref.watch(initialSyncProvider); // Monitor initial sync
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -37,32 +59,59 @@ class _HomePageState extends ConsumerState<HomePage> {
             fontSize: 24,
           ),
         ),
+        // <<< NEW: Added Logout button
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout, color: Colors.white70),
+            onPressed: _signOut,
+            tooltip: 'Sign Out',
+          ),
+        ],
+        // -----------------------------
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _sectionTitle("Quick Start"),
-            const SizedBox(height: 12),
-            _quickStartCard(context),
-            const SizedBox(height: 32),
-            Row(
-              children: [
-                _sectionTitle("Routines"),
-                const Spacer(),
-                _iconButton(
-                  Icons.create_new_folder,
-                  () => _showCreateRoutineDialog(context),
-                ),
-                const SizedBox(width: 8),
-                _iconButton(Icons.add, () => context.push('/workout/template')),
-              ],
+      body: initialSync.when(
+        loading:
+            () => const Center(
+              child: CircularProgressIndicator(),
+            ), // Show loading while initial sync runs
+        error:
+            (err, stack) => Center(
+              child: Text(
+                'Sync Error: $err',
+                style: const TextStyle(color: Colors.red),
+              ),
             ),
-            const SizedBox(height: 24),
-            _myRoutinesSection(context, routinesAsync),
-          ],
-        ),
+        data:
+            (_) => SingleChildScrollView(
+              // Once sync is done, show content
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _sectionTitle("Quick Start"),
+                  const SizedBox(height: 12),
+                  _quickStartCard(context),
+                  const SizedBox(height: 32),
+                  Row(
+                    children: [
+                      _sectionTitle("Routines"),
+                      const Spacer(),
+                      _iconButton(
+                        Icons.create_new_folder,
+                        () => _showCreateRoutineDialog(context),
+                      ),
+                      const SizedBox(width: 8),
+                      _iconButton(
+                        Icons.add,
+                        () => context.push('/workout/template'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  _myRoutinesSection(context, routinesAsync),
+                ],
+              ),
+            ),
       ),
     );
   }
@@ -314,10 +363,14 @@ class _HomePageState extends ConsumerState<HomePage> {
             ),
           ),
       error:
-          (_, __) => const Text("Failed", style: TextStyle(color: Colors.red)),
+          (_, __) => const Text(
+            "Failed to load routines",
+            style: TextStyle(color: Colors.red),
+          ),
     );
   }
 
+  // FIXED: Deleted manual migration logic
   void _deleteRoutine(String id) async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -353,22 +406,7 @@ class _HomePageState extends ConsumerState<HomePage> {
 
     if (confirm != true) return;
 
-    final service = ref.read(workoutServiceProvider);
-    final routines = await service.getRoutines();
-
-    final routine = routines.firstWhere(
-      (r) => r.id == id,
-      orElse: () => Routine(id: '', name: '', templates: []),
-    );
-
-    if (routine.id.isEmpty) return;
-
-    final uncatId = await service.ensureUncategorized();
-    for (final t in routine.templates) {
-      await service.saveTemplate(t.copyWith(routineId: uncatId), uncatId);
-    }
-
-    await service.deleteRoutine(id);
+    await ref.read(workoutServiceProvider).deleteRoutine(id);
     ref.invalidate(routinesProvider);
   }
 }
